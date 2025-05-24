@@ -15,8 +15,6 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.List;
-
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles({"rag","redis"})
 public class RAGTests {
@@ -43,7 +41,7 @@ public class RAGTests {
      * Helper method to evaluate if a response is relevant using Spring AI's RelevancyEvaluator
      */
     private void evaluateRelevancy(String question, ChatResponse chatResponse) {
-        EvaluationRequest evaluationRequest = new EvaluationRequest(
+        var evaluationRequest = new EvaluationRequest(
             question,
             chatResponse.getMetadata().get(QuestionAnswerAdvisor.RETRIEVED_DOCUMENTS),
             chatResponse.getResult().getOutput().getText()
@@ -56,7 +54,8 @@ public class RAGTests {
 
     @Test
     void ragFromWikipediaInfo() {
-        // Query about Spring (should return relevant info)
+        // Query about Spring (should return relevant info, even though it's wrong
+        // because the Wikipedia page does not have the current version)
         String question = "What is the latest version of the Spring Framework?";
         ChatResponse chatResponse = ragService.queryWithResponse(question);
         String response = chatResponse.getResult().getOutput().getText();
@@ -105,7 +104,7 @@ public class RAGTests {
         
         // Use AI to evaluate if the response properly indicates lack of knowledge
         String evaluationPrompt = String.format("""
-            Does the following response properly indicate that the system doesn't have enough 
+            Does the following response properly indicate that the system doesn't have enough
             information to answer the question, or that the question is outside its knowledge base?
             
             Response to evaluate: "%s"
@@ -114,7 +113,8 @@ public class RAGTests {
             """, outOfScopeResponse.replace("\"", "\\\""));
             
         String evaluation = evaluatorClient.prompt(evaluationPrompt).call().content();
-        
+
+        assertNotNull(evaluation);
         assertTrue(
             evaluation.trim().toLowerCase().contains("true"),
             "AI evaluation failed - Response should indicate lack of information. " +
