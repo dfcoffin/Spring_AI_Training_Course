@@ -82,6 +82,13 @@ gh issue close <issue-number>
 
 **Important**: Always create GitHub issues for new features, major refactors, or bug fixes before starting work. This helps with project tracking and documentation.
 
+**CRITICAL REMINDER**: Before implementing any significant changes or new features:
+1. **CREATE** a GitHub issue first using `gh issue create`
+2. **IMPLEMENT** the feature or fix
+3. **CLOSE** the issue when complete using `gh issue close <number>`
+
+This workflow ensures proper documentation and project tracking. Don't forget to close issues upon completion!
+
 ## Required Environment Variables
 
 Set these environment variables before running the application:
