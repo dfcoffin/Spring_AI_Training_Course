@@ -20,6 +20,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.Resource;
 import org.springframework.util.MimeTypeUtils;
 import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -130,6 +131,19 @@ class OpenAiTests {
                 .doOnCancel(() -> System.out.println("Cancelled"))
                 .doOnComplete(() -> System.out.println("Completed"))
                 .blockLast();
+    }
+
+    @Test // Note: Requires the reactor-test dependency (not included in the starter)
+    void streamingChatStepVerifier() {
+        Flux<String> output = chatClient.prompt()
+                .user("Why is the sky blue?")
+                .stream()
+                .content();
+
+        output.as(StepVerifier::create)
+                .expectSubscription()
+                .thenConsumeWhile(s -> true, System.out::println)
+                .verifyComplete();
     }
 
     @Test

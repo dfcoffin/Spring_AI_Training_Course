@@ -40,6 +40,7 @@ dependencies {
         exclude(group = "com.vaadin.external.google", module = "android-json")
     }
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("io.projectreactor:reactor-test")  // for streaming tests
 }
 
 dependencyManagement {
