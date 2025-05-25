@@ -27,7 +27,7 @@ public class RAGTests {
     
     private ChatClient evaluatorClient;
 
-    // For info, see the documentation: 
+    // For info, see the documentation:
     // https://docs.spring.io/spring-ai/reference/api/testing.html#_relevancy_evaluator
     private RelevancyEvaluator relevancyEvaluator;
     
