@@ -18,8 +18,9 @@ This series of labs will guide you through building a Spring AI application that
 - [Lab 9: AI Tools](#lab-9-ai-tools)
 - [Lab 10: Audio Capabilities](#lab-10-audio-capabilities)
 - [Lab 11: Refactoring for Production](#lab-11-refactoring-for-production)
-- [Lab 12: Retrieval-Augmented Generation (RAG)](#lab-12-retrieval-augmented-generation-rag)
-- [Lab 13: Redis Vector Store for RAG](#lab-13-redis-vector-store-for-rag)
+- [Lab 12: AI Response Evaluation (Advanced)](#lab-12-ai-response-evaluation-advanced)
+- [Lab 13: Retrieval-Augmented Generation (RAG)](#lab-13-retrieval-augmented-generation-rag)
+- [Lab 14: Redis Vector Store for RAG](#lab-14-redis-vector-store-for-rag)
 - [Conclusion](#conclusion)
 
 ## Setup
@@ -811,11 +812,206 @@ public class FilmographyController {
 
 [↑ Back to table of contents](#table-of-contents)
 
-## Lab 12: Retrieval-Augmented Generation (RAG)
+## Lab 12: AI Response Evaluation (Advanced)
+
+> **Note:** This is an advanced lab designed for students who want to explore production-quality AI testing patterns. While not required for the core Spring AI course, it demonstrates important concepts for validating AI systems in real-world applications.
+
+In production AI applications, it's crucial to validate the quality and accuracy of AI-generated responses. This lab introduces an automated evaluation system that uses a smaller, faster AI model to assess the quality of responses from your main AI model.
+
+### 12.1 Understanding the Dual-Model Approach
+
+The evaluation system uses two different models:
+- **Generation Model**: Your main model (e.g., `gpt-4.1`) that generates responses to user queries
+- **Evaluation Model**: A smaller, faster model (e.g., `gpt-4.1-nano`) that evaluates the quality of those responses
+
+This approach provides several benefits:
+1. **Cost Efficiency**: Nano models are much cheaper for simple evaluation tasks
+2. **Speed**: Faster evaluation without sacrificing quality assessment
+3. **Objectivity**: The evaluator model provides consistent, unbiased scoring
+4. **Scalability**: Can evaluate large numbers of responses automatically
+
+### 12.2 Implementing the Evaluation System
+
+First, set up dual ChatClient instances in your test class:
+
+```java
+@SpringBootTest
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
+class OpenAiTests {
+
+    @Autowired
+    private OpenAiChatModel model;
+
+    private ChatClient chatClient;
+    private ChatClient evaluator;
+
+    @BeforeEach
+    void setUp() {
+        // Main model for content generation
+        chatClient = ChatClient.builder(model)
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
+
+        // Nano model for evaluation
+        evaluator = chatClient.mutate()
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model("gpt-4.1-nano-2025-04-14")
+                        .build())
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
+    }
+}
+```
+
+### 12.3 Creating the Evaluation Method
+
+Implement a method that uses structured output to get consistent evaluation scores:
+
+```java
+private double evaluateAnswer(String question, String answer) {
+    record AnswerQuality(String question, String answer, double score) {}
+
+    String evaluationPrompt = """
+            Evaluate the answer to the question
+            in terms of its relevance and correctness.
+            Question: {question}
+            Answer: {answer}
+            Provide a score between 0.0 and 1.0,
+            where 0.0 is completely wrong and 1.0 is perfect.
+            """;
+
+    AnswerQuality answerQuality = evaluator.prompt()
+            .user(u -> u.text(evaluationPrompt)
+                    .param("question", question)
+                    .param("answer", answer))
+            .call()
+            .entity(AnswerQuality.class);
+
+    assertNotNull(answerQuality);
+    NumberFormat numberFormat = NumberFormat.getPercentInstance();
+    System.out.println("Correctness probability: " + numberFormat.format(answerQuality.score()));
+    return answerQuality.score;
+}
+```
+
+### 12.4 Using Evaluation in Tests
+
+Now integrate evaluation into your existing tests:
+
+```java
+@Test
+void simpleQueryWithEvaluation() {
+    String question = "Why is the sky blue?";
+    String response = chatClient.prompt()
+            .user(question)
+            .call()
+            .content();
+    
+    System.out.println(response);
+    
+    // Evaluate the response quality
+    double score = evaluateAnswer(question, response);
+    assertTrue(score > 0.8, "Response should be highly accurate for basic science questions");
+}
+
+@Test
+void actorFilmsTestWithEvaluation() {
+    ActorFilms actorFilms = chatClient.prompt()
+            .user("Generate the filmography for a random actor.")
+            .call()
+            .entity(ActorFilms.class);
+            
+    assertNotNull(actorFilms);
+    System.out.println("Actor: " + actorFilms.actor());
+    actorFilms.movies().forEach(System.out::println);
+    
+    // Create a comprehensive answer for evaluation
+    String fullAnswer = "Actor: " + actorFilms.actor() + 
+                       "\nMovies: " + String.join(", ", actorFilms.movies());
+    double score = evaluateAnswer("Generate the filmography for a random actor.", fullAnswer);
+    
+    // Accept a range of scores since filmography accuracy can vary
+    assertTrue(score > 0.6, "Generated filmography should be reasonably accurate");
+}
+```
+
+### 12.5 Understanding Evaluation Results
+
+The evaluation system will give different scores based on the accuracy of the generated content:
+
+- **90-100%**: Highly accurate responses with real, verifiable information
+- **60-80%**: Good responses with some accurate elements but potential inaccuracies
+- **0-40%**: Poor responses with fictional or incorrect information
+
+For example:
+- Real actors with accurate movies → High scores (80-90%)
+- Real actors with some incorrect movies → Medium scores (60-80%)  
+- Fictional actors with fictional movies → Low scores (0-20%)
+
+### 12.6 Advanced Evaluation Patterns
+
+You can extend this pattern for different types of evaluations:
+
+```java
+private double evaluateFactualAccuracy(String question, String answer) {
+    String prompt = """
+            Evaluate the factual accuracy of this answer.
+            Focus only on verifiable facts, not opinions or interpretations.
+            Question: {question}
+            Answer: {answer}
+            Score from 0.0 (completely inaccurate) to 1.0 (perfectly accurate).
+            """;
+    // Implementation similar to evaluateAnswer...
+}
+
+private double evaluateRelevance(String question, String answer) {
+    String prompt = """
+            Evaluate how well this answer addresses the specific question asked.
+            Ignore factual accuracy - focus only on relevance and completeness.
+            Question: {question}
+            Answer: {answer}
+            Score from 0.0 (completely irrelevant) to 1.0 (perfectly relevant).
+            """;
+    // Implementation similar to evaluateAnswer...
+}
+```
+
+### 12.7 Production Considerations
+
+When implementing evaluation systems in production:
+
+1. **Cost Management**: Nano models are cost-effective but still incur charges
+2. **Latency**: Evaluation adds time to your response cycle
+3. **Batch Processing**: Consider evaluating responses asynchronously
+4. **Thresholds**: Establish score thresholds for different use cases
+5. **Monitoring**: Track evaluation scores over time to detect model drift
+
+### 12.8 Alternative Approaches
+
+This lab focused on AI-based evaluation, but you could also implement:
+
+- **Rule-based evaluation**: Pattern matching and keyword detection
+- **Human evaluation**: Sampling responses for manual review  
+- **Benchmark datasets**: Testing against known question-answer pairs
+- **A/B testing**: Comparing different models or prompting strategies
+
+### Key Takeaways
+
+This evaluation system demonstrates:
+- How to implement quality assurance for AI applications
+- The value of using smaller models for specific tasks
+- Structured output patterns for consistent evaluation
+- Production-ready testing patterns for AI systems
+
+While this lab represents advanced concepts, understanding evaluation is crucial for building reliable AI applications that users can trust.
+
+[↑ Back to table of contents](#table-of-contents)
+
+## Lab 13: Retrieval-Augmented Generation (RAG)
 
 In this lab, you'll build a Retrieval-Augmented Generation (RAG) system using Spring AI's document readers and vector store capabilities. RAG enhances AI responses by retrieving relevant information from a knowledge base before generating answers.
 
-### 12.1 Adding Required Dependencies
+### 13.1 Adding Required Dependencies
 
 First, add the necessary dependencies to your build.gradle.kts:
 
@@ -832,7 +1028,7 @@ dependencies {
 }
 ```
 
-### 12.2 Setting up the Configuration
+### 13.2 Setting up the Configuration
 
 Create a configuration class that will manage the vector store and document loading:
 
@@ -880,7 +1076,7 @@ logging.level.org.springframework.ai=info
 logging.level.org.springframework.ai.chat.client.advisor=info
 ```
 
-### 12.3 Creating the RAG Service
+### 13.3 Creating the RAG Service
 
 Create a service class that handles queries against your knowledge base:
 
@@ -913,7 +1109,7 @@ public class RAGService {
 }
 ```
 
-### 12.4 Testing the RAG System
+### 13.4 Testing the RAG System
 
 Create an integration test to verify your RAG system works correctly:
 
@@ -958,7 +1154,7 @@ public class RAGTests {
 }
 ```
 
-### 12.5 Running with the RAG Profile
+### 13.5 Running with the RAG Profile
 
 To run your application with RAG enabled, set the active profile:
 
@@ -972,7 +1168,7 @@ To run your application with RAG enabled, set the active profile:
 
 By using the profile approach, you ensure that the RAG system only loads its knowledge base when explicitly enabled, preventing unnecessary processing during regular application use or other tests.
 
-### 12.5 Using a Persistent Vector Store
+### 13.5 Using a Persistent Vector Store
 
 For long-term persistence and better performance with large documents, you can consider using a persistent vector store like Chroma or PostgreSQL.
 
@@ -988,11 +1184,11 @@ Each of these options has different setup requirements and performance character
 
 For this lab, we're using the SimpleVectorStore for ease of setup, but in production environments, a persistent vector store would typically be preferred.
 
-### 12.6 Testing RAG Response Quality with RelevancyEvaluator
+### 13.6 Testing RAG Response Quality with RelevancyEvaluator
 
 Spring AI provides a unique feature called `RelevancyEvaluator` that uses AI to evaluate the quality and relevance of RAG responses. This is particularly valuable for validating that your RAG system is working correctly and producing contextually appropriate responses.
 
-#### 12.6.1 Enhance RAGService for Testing
+#### 13.6.1 Enhance RAGService for Testing
 
 First, modify your RAGService to provide access to the full ChatResponse object for testing:
 
@@ -1037,7 +1233,7 @@ public class RAGService {
 }
 ```
 
-#### 12.6.2 Update RAG Tests with RelevancyEvaluator
+#### 13.6.2 Update RAG Tests with RelevancyEvaluator
 
 Enhance your RAG tests to use Spring AI's semantic evaluation capabilities:
 
@@ -1159,7 +1355,7 @@ import org.springframework.ai.evaluation.EvaluationRequest;
 import org.springframework.ai.evaluation.EvaluationResponse;
 ```
 
-#### 12.6.3 Benefits of Using RelevancyEvaluator
+#### 13.6.3 Benefits of Using RelevancyEvaluator
 
 1. **Semantic Evaluation**: Goes beyond simple null/empty checks to validate actual response quality
 2. **Automated Quality Assurance**: Uses AI to evaluate AI responses, providing consistent evaluation criteria
@@ -1180,7 +1376,7 @@ The RelevancyEvaluator uses the original question, the retrieved document contex
 
 The RAG system you've built can be extended with additional knowledge sources by adding more URLs or document readers to the configuration.
 
-### 12.7 Incorporating PDF Documents into RAG
+### 13.7 Incorporating PDF Documents into RAG
 
 While web content is easily accessible using the JsoupDocumentReader, many valuable information sources exist as PDF documents. Let's extend our RAG system to incorporate PDF documents:
 
@@ -1275,11 +1471,11 @@ void ragFromPdfInfo() {
 
 [↑ Back to table of contents](#table-of-contents)
 
-## Lab 13: Redis Vector Store for RAG
+## Lab 14: Redis Vector Store for RAG
 
 In production environments, you often need a persistent, scalable vector store instead of the in-memory `SimpleVectorStore`. Redis provides an excellent option for a production-ready vector store. This lab will guide you through setting up Redis as your vector store for the RAG system.
 
-### 13.1 Prerequisites
+### 14.1 Prerequisites
 
 To use Redis as a vector store, you need a running Redis instance. The easiest way to get started is with Docker:
 
@@ -1289,7 +1485,7 @@ docker run -p 6379:6379 redis/redis-stack:latest
 
 This command starts Redis Stack, which includes Redis and the necessary vector search capabilities.
 
-### 13.2 Update Configuration
+### 14.2 Update Configuration
 
 Update your application.properties with Redis configuration:
 
@@ -1310,7 +1506,7 @@ implementation("org.springframework.ai:spring-ai-starter-vector-store-redis")
 
 That's sufficient to create and configure a Redis vector store. The Spring AI Redis integration will handle the connection and schema creation for you.
 
-### 13.3 Modify AppConfig to Support Redis
+### 14.3 Modify AppConfig to Support Redis
 
 Modify your AppConfig class to support switching between `SimpleVectorStore` and Redis using profiles:
 
@@ -1427,7 +1623,7 @@ The Redis data detection feature is particularly valuable as it:
 - Prevents redundant data from being added to the vector store
 - Makes the application more efficient when restarting
 
-### 13.4 Update RAGTests to Use Redis
+### 14.4 Update RAGTests to Use Redis
 
 Modify your test class to use both the "rag" and "redis" profiles:
 
@@ -1457,7 +1653,7 @@ public class RAGTests {
 }
 ```
 
-### 13.5 Running the Tests
+### 14.5 Running the Tests
 
 Run the tests with both profiles activated:
 
