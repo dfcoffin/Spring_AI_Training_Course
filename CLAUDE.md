@@ -21,6 +21,7 @@ The course demonstrates integration of Large Language Models (LLMs) with Spring 
 - Chat memory for maintaining conversation context
 - Vision capabilities for image understanding and generation
 - Audio processing (text-to-speech and speech-to-text)
+- AI response evaluation and quality assurance patterns
 - Retrieval-Augmented Generation (RAG) with PDF and web content
 
 ## Common Commands

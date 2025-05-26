@@ -51,8 +51,9 @@ Follow the exercises in [labs.md](labs.md) to build Spring AI applications from 
 7. **Image Generation** - AI-created images
 8. **AI Tools** - Function calling
 9. **Audio Processing** - Speech-to-text and text-to-speech
-10. **Retrieval-Augmented Generation (RAG)** - AI with knowledge base
-11. **Production RAG** - Redis vector store optimization
+10. **AI Response Evaluation** - Quality assurance for AI systems (advanced)
+11. **Retrieval-Augmented Generation (RAG)** - AI with knowledge base
+12. **Production RAG** - Redis vector store optimization
 
 ## Learning Approach
 
