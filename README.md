@@ -11,6 +11,7 @@ This repository contains starter code for a comprehensive Spring AI training cou
 - **`main` branch**: Starter code with TODO-guided exercises
 - **`solutions` branch**: Complete implementations for reference
 - **`labs.md`**: Step-by-step lab instructions and exercises
+- **`slides.md`**: Comprehensive Slidev presentation for training sessions
 
 ### Prerequisites
 
@@ -62,8 +63,24 @@ Follow the exercises in [labs.md](labs.md) to build Spring AI applications from 
 - **Reference solutions**: Check the `solutions` branch when needed
 - **Hands-on learning**: Learn by implementing, not copying
 
-## Support
+## Training Materials
 
-- **Lab Instructions**: See [labs.md](labs.md)
-- **Complete Examples**: Switch to `solutions` branch
+- **Lab Instructions**: See [labs.md](labs.md) for step-by-step exercises
+- **Presentation Slides**: Use [slides.md](slides.md) with Slidev for training sessions
+- **Complete Examples**: Switch to `solutions` branch for working implementations
 - **Issues**: Report problems via GitHub issues
+
+### Using the Presentation
+
+```bash
+# Install Slidev globally
+npm install -g @slidev/cli
+
+# Start the presentation
+slidev slides.md
+
+# Export to PDF
+slidev export slides.md
+```
+
+**Note**: Pre-exported versions are available as `slides-export.pdf` and `slides-export.pptx`
