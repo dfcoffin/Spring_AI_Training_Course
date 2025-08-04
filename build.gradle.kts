@@ -28,7 +28,8 @@ dependencies {
 
     // Vector Stores
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
-    implementation("org.springframework.ai:spring-ai-starter-vector-store-redis")
+    // Note: Redis vector store dependency should be added only when needed:
+    // implementation("org.springframework.ai:spring-ai-starter-vector-store-redis")
 
     // Document Readers
     implementation("org.springframework.ai:spring-ai-jsoup-document-reader")
