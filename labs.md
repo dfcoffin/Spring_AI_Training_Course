@@ -2,7 +2,7 @@
 
 This series of labs will guide you through building a Spring AI application that uses various capabilities of large language models via the Spring AI abstraction layer. By the end of these exercises, you'll have hands-on experience with text generation, structured data extraction, prompt templates, chat memory, vision capabilities, and more.
 
-> **Note:** This project uses Spring Boot 3.4.5 and Spring AI 1.0.0. Spring AI 1.0.0 includes significant API changes, including using builder patterns for constructing advisors like `MessageChatMemoryAdvisor`.
+> **Note:** This project uses Spring Boot 3.5.4 and Spring AI 1.0.0. Spring AI 1.0.0 includes significant API changes, including using builder patterns for constructing advisors like `MessageChatMemoryAdvisor`.
 
 ## Table of Contents
 
@@ -18,9 +18,10 @@ This series of labs will guide you through building a Spring AI application that
 - [Lab 9: AI Tools](#lab-9-ai-tools)
 - [Lab 10: Audio Capabilities](#lab-10-audio-capabilities)
 - [Lab 11: Refactoring for Production](#lab-11-refactoring-for-production)
-- [Lab 12: AI Response Evaluation (Advanced)](#lab-12-ai-response-evaluation-advanced)
-- [Lab 13: Retrieval-Augmented Generation (RAG)](#lab-13-retrieval-augmented-generation-rag)
-- [Lab 14: Redis Vector Store for RAG](#lab-14-redis-vector-store-for-rag)
+- [Lab 12: Retrieval-Augmented Generation (RAG)](#lab-12-retrieval-augmented-generation-rag)
+- [Lab 13: Redis Vector Store for RAG](#lab-13-redis-vector-store-for-rag)
+- [Lab 14: Model Context Protocol (MCP) - Client](#lab-14-model-context-protocol-mcp---client)
+- [Lab 15: Model Context Protocol (MCP) - Server](#lab-15-model-context-protocol-mcp---server)
 - [Conclusion](#conclusion)
 
 ## Setup
@@ -445,6 +446,12 @@ assistant messages. Fortunately, you can autowire in a `ChatMemory` bean.
 private ChatMemory memory;
 ```
 
+You'll also need to import the `MessageChatMemoryAdvisor`:
+
+```java
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+```
+
 Create a test that demonstrates how to make conversations stateful using ChatMemory:
 
 ```java
@@ -812,206 +819,11 @@ public class FilmographyController {
 
 [↑ Back to table of contents](#table-of-contents)
 
-## Lab 12: AI Response Evaluation (Advanced)
-
-> **Note:** This is an advanced lab designed for students who want to explore production-quality AI testing patterns. While not required for the core Spring AI course, it demonstrates important concepts for validating AI systems in real-world applications.
-
-In production AI applications, it's crucial to validate the quality and accuracy of AI-generated responses. This lab introduces an automated evaluation system that uses a smaller, faster AI model to assess the quality of responses from your main AI model.
-
-### 12.1 Understanding the Dual-Model Approach
-
-The evaluation system uses two different models:
-- **Generation Model**: Your main model (e.g., `gpt-4.1`) that generates responses to user queries
-- **Evaluation Model**: A smaller, faster model (e.g., `gpt-4.1-nano`) that evaluates the quality of those responses
-
-This approach provides several benefits:
-1. **Cost Efficiency**: Nano models are much cheaper for simple evaluation tasks
-2. **Speed**: Faster evaluation without sacrificing quality assessment
-3. **Objectivity**: The evaluator model provides consistent, unbiased scoring
-4. **Scalability**: Can evaluate large numbers of responses automatically
-
-### 12.2 Implementing the Evaluation System
-
-First, set up dual ChatClient instances in your test class:
-
-```java
-@SpringBootTest
-@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
-class OpenAiTests {
-
-    @Autowired
-    private OpenAiChatModel model;
-
-    private ChatClient chatClient;
-    private ChatClient evaluator;
-
-    @BeforeEach
-    void setUp() {
-        // Main model for content generation
-        chatClient = ChatClient.builder(model)
-                .defaultAdvisors(new SimpleLoggerAdvisor())
-                .build();
-
-        // Nano model for evaluation
-        evaluator = chatClient.mutate()
-                .defaultOptions(OpenAiChatOptions.builder()
-                        .model("gpt-4.1-nano-2025-04-14")
-                        .build())
-                .defaultAdvisors(new SimpleLoggerAdvisor())
-                .build();
-    }
-}
-```
-
-### 12.3 Creating the Evaluation Method
-
-Implement a method that uses structured output to get consistent evaluation scores:
-
-```java
-private double evaluateAnswer(String question, String answer) {
-    record AnswerQuality(String question, String answer, double score) {}
-
-    String evaluationPrompt = """
-            Evaluate the answer to the question
-            in terms of its relevance and correctness.
-            Question: {question}
-            Answer: {answer}
-            Provide a score between 0.0 and 1.0,
-            where 0.0 is completely wrong and 1.0 is perfect.
-            """;
-
-    AnswerQuality answerQuality = evaluator.prompt()
-            .user(u -> u.text(evaluationPrompt)
-                    .param("question", question)
-                    .param("answer", answer))
-            .call()
-            .entity(AnswerQuality.class);
-
-    assertNotNull(answerQuality);
-    NumberFormat numberFormat = NumberFormat.getPercentInstance();
-    System.out.println("Correctness probability: " + numberFormat.format(answerQuality.score()));
-    return answerQuality.score;
-}
-```
-
-### 12.4 Using Evaluation in Tests
-
-Now integrate evaluation into your existing tests:
-
-```java
-@Test
-void simpleQueryWithEvaluation() {
-    String question = "Why is the sky blue?";
-    String response = chatClient.prompt()
-            .user(question)
-            .call()
-            .content();
-    
-    System.out.println(response);
-    
-    // Evaluate the response quality
-    double score = evaluateAnswer(question, response);
-    assertTrue(score > 0.8, "Response should be highly accurate for basic science questions");
-}
-
-@Test
-void actorFilmsTestWithEvaluation() {
-    ActorFilms actorFilms = chatClient.prompt()
-            .user("Generate the filmography for a random actor.")
-            .call()
-            .entity(ActorFilms.class);
-            
-    assertNotNull(actorFilms);
-    System.out.println("Actor: " + actorFilms.actor());
-    actorFilms.movies().forEach(System.out::println);
-    
-    // Create a comprehensive answer for evaluation
-    String fullAnswer = "Actor: " + actorFilms.actor() + 
-                       "\nMovies: " + String.join(", ", actorFilms.movies());
-    double score = evaluateAnswer("Generate the filmography for a random actor.", fullAnswer);
-    
-    // Accept a range of scores since filmography accuracy can vary
-    assertTrue(score > 0.6, "Generated filmography should be reasonably accurate");
-}
-```
-
-### 12.5 Understanding Evaluation Results
-
-The evaluation system will give different scores based on the accuracy of the generated content:
-
-- **90-100%**: Highly accurate responses with real, verifiable information
-- **60-80%**: Good responses with some accurate elements but potential inaccuracies
-- **0-40%**: Poor responses with fictional or incorrect information
-
-For example:
-- Real actors with accurate movies → High scores (80-90%)
-- Real actors with some incorrect movies → Medium scores (60-80%)  
-- Fictional actors with fictional movies → Low scores (0-20%)
-
-### 12.6 Advanced Evaluation Patterns
-
-You can extend this pattern for different types of evaluations:
-
-```java
-private double evaluateFactualAccuracy(String question, String answer) {
-    String prompt = """
-            Evaluate the factual accuracy of this answer.
-            Focus only on verifiable facts, not opinions or interpretations.
-            Question: {question}
-            Answer: {answer}
-            Score from 0.0 (completely inaccurate) to 1.0 (perfectly accurate).
-            """;
-    // Implementation similar to evaluateAnswer...
-}
-
-private double evaluateRelevance(String question, String answer) {
-    String prompt = """
-            Evaluate how well this answer addresses the specific question asked.
-            Ignore factual accuracy - focus only on relevance and completeness.
-            Question: {question}
-            Answer: {answer}
-            Score from 0.0 (completely irrelevant) to 1.0 (perfectly relevant).
-            """;
-    // Implementation similar to evaluateAnswer...
-}
-```
-
-### 12.7 Production Considerations
-
-When implementing evaluation systems in production:
-
-1. **Cost Management**: Nano models are cost-effective but still incur charges
-2. **Latency**: Evaluation adds time to your response cycle
-3. **Batch Processing**: Consider evaluating responses asynchronously
-4. **Thresholds**: Establish score thresholds for different use cases
-5. **Monitoring**: Track evaluation scores over time to detect model drift
-
-### 12.8 Alternative Approaches
-
-This lab focused on AI-based evaluation, but you could also implement:
-
-- **Rule-based evaluation**: Pattern matching and keyword detection
-- **Human evaluation**: Sampling responses for manual review  
-- **Benchmark datasets**: Testing against known question-answer pairs
-- **A/B testing**: Comparing different models or prompting strategies
-
-### Key Takeaways
-
-This evaluation system demonstrates:
-- How to implement quality assurance for AI applications
-- The value of using smaller models for specific tasks
-- Structured output patterns for consistent evaluation
-- Production-ready testing patterns for AI systems
-
-While this lab represents advanced concepts, understanding evaluation is crucial for building reliable AI applications that users can trust.
-
-[↑ Back to table of contents](#table-of-contents)
-
-## Lab 13: Retrieval-Augmented Generation (RAG)
+## Lab 12: Retrieval-Augmented Generation (RAG)
 
 In this lab, you'll build a Retrieval-Augmented Generation (RAG) system using Spring AI's document readers and vector store capabilities. RAG enhances AI responses by retrieving relevant information from a knowledge base before generating answers.
 
-### 13.1 Adding Required Dependencies
+### 12.1 Adding Required Dependencies
 
 First, add the necessary dependencies to your build.gradle.kts:
 
@@ -1028,7 +840,7 @@ dependencies {
 }
 ```
 
-### 13.2 Setting up the Configuration
+### 12.2 Setting up the Configuration
 
 Create a configuration class that will manage the vector store and document loading:
 
@@ -1076,7 +888,7 @@ logging.level.org.springframework.ai=info
 logging.level.org.springframework.ai.chat.client.advisor=info
 ```
 
-### 13.3 Creating the RAG Service
+### 12.3 Creating the RAG Service
 
 Create a service class that handles queries against your knowledge base:
 
@@ -1109,7 +921,7 @@ public class RAGService {
 }
 ```
 
-### 13.4 Testing the RAG System
+### 12.4 Testing the RAG System
 
 Create an integration test to verify your RAG system works correctly:
 
@@ -1154,7 +966,7 @@ public class RAGTests {
 }
 ```
 
-### 13.5 Running with the RAG Profile
+### 12.5 Running with the RAG Profile
 
 To run your application with RAG enabled, set the active profile:
 
@@ -1168,7 +980,7 @@ To run your application with RAG enabled, set the active profile:
 
 By using the profile approach, you ensure that the RAG system only loads its knowledge base when explicitly enabled, preventing unnecessary processing during regular application use or other tests.
 
-### 13.5 Using a Persistent Vector Store
+### 12.5 Using a Persistent Vector Store
 
 For long-term persistence and better performance with large documents, you can consider using a persistent vector store like Chroma or PostgreSQL.
 
@@ -1184,11 +996,11 @@ Each of these options has different setup requirements and performance character
 
 For this lab, we're using the SimpleVectorStore for ease of setup, but in production environments, a persistent vector store would typically be preferred.
 
-### 13.6 Testing RAG Response Quality with RelevancyEvaluator
+### 12.6 Testing RAG Response Quality with RelevancyEvaluator
 
 Spring AI provides a unique feature called `RelevancyEvaluator` that uses AI to evaluate the quality and relevance of RAG responses. This is particularly valuable for validating that your RAG system is working correctly and producing contextually appropriate responses.
 
-#### 13.6.1 Enhance RAGService for Testing
+#### 12.6.1 Enhance RAGService for Testing
 
 First, modify your RAGService to provide access to the full ChatResponse object for testing:
 
@@ -1233,7 +1045,7 @@ public class RAGService {
 }
 ```
 
-#### 13.6.2 Update RAG Tests with RelevancyEvaluator
+#### 12.6.2 Update RAG Tests with RelevancyEvaluator
 
 Enhance your RAG tests to use Spring AI's semantic evaluation capabilities:
 
@@ -1355,7 +1167,7 @@ import org.springframework.ai.evaluation.EvaluationRequest;
 import org.springframework.ai.evaluation.EvaluationResponse;
 ```
 
-#### 13.6.3 Benefits of Using RelevancyEvaluator
+#### 12.6.3 Benefits of Using RelevancyEvaluator
 
 1. **Semantic Evaluation**: Goes beyond simple null/empty checks to validate actual response quality
 2. **Automated Quality Assurance**: Uses AI to evaluate AI responses, providing consistent evaluation criteria
@@ -1376,7 +1188,7 @@ The RelevancyEvaluator uses the original question, the retrieved document contex
 
 The RAG system you've built can be extended with additional knowledge sources by adding more URLs or document readers to the configuration.
 
-### 13.7 Incorporating PDF Documents into RAG
+### 12.7 Incorporating PDF Documents into RAG
 
 While web content is easily accessible using the JsoupDocumentReader, many valuable information sources exist as PDF documents. Let's extend our RAG system to incorporate PDF documents:
 
@@ -1471,11 +1283,13 @@ void ragFromPdfInfo() {
 
 [↑ Back to table of contents](#table-of-contents)
 
-## Lab 14: Redis Vector Store for RAG
+## Lab 13: Redis Vector Store for RAG
 
 In production environments, you often need a persistent, scalable vector store instead of the in-memory `SimpleVectorStore`. Redis provides an excellent option for a production-ready vector store. This lab will guide you through setting up Redis as your vector store for the RAG system.
 
-### 14.1 Prerequisites
+**Profile Usage**: This lab demonstrates proper profile separation where Redis configuration is isolated to the `redis` profile. Redis is only activated when explicitly enabled using `--spring.profiles.active=rag,redis`, preventing unnecessary Redis dependencies for basic AI functionality.
+
+### 13.1 Prerequisites
 
 To use Redis as a vector store, you need a running Redis instance. The easiest way to get started is with Docker:
 
@@ -1485,17 +1299,24 @@ docker run -p 6379:6379 redis/redis-stack:latest
 
 This command starts Redis Stack, which includes Redis and the necessary vector search capabilities.
 
-### 14.2 Update Configuration
+### 13.2 Update Configuration
 
-Update your application.properties with Redis configuration:
+Create a dedicated Redis profile in `application-redis.properties`:
 
 ```properties
-# Redis settings
+# Redis Profile Configuration
+# This profile enables Redis vector store for RAG functionality
+# Use with: --spring.profiles.active=rag,redis
+
+# Redis vector store settings
 spring.ai.vectorstore.redis.initialize-schema=true
 spring.data.redis.host=localhost
 spring.data.redis.port=6379
 spring.data.redis.username=default
 spring.data.redis.password=
+
+# Redis vector store specific configuration
+# Enables RedisVectorStore instead of SimpleVectorStore
 ```
 
 You also need to add the Redis dependencies to your `build.gradle.kts`:
@@ -1506,7 +1327,7 @@ implementation("org.springframework.ai:spring-ai-starter-vector-store-redis")
 
 That's sufficient to create and configure a Redis vector store. The Spring AI Redis integration will handle the connection and schema creation for you.
 
-### 14.3 Modify AppConfig to Support Redis
+### 13.3 Modify AppConfig to Support Redis
 
 Modify your AppConfig class to support switching between `SimpleVectorStore` and Redis using profiles:
 
@@ -1623,7 +1444,7 @@ The Redis data detection feature is particularly valuable as it:
 - Prevents redundant data from being added to the vector store
 - Makes the application more efficient when restarting
 
-### 14.4 Update RAGTests to Use Redis
+### 13.4 Update RAGTests to Use Redis
 
 Modify your test class to use both the "rag" and "redis" profiles:
 
@@ -1653,13 +1474,573 @@ public class RAGTests {
 }
 ```
 
-### 14.5 Running the Tests
+### 13.5 Running the Tests
 
 Run the tests with both profiles activated:
 
 ```bash
 ./gradlew test --tests RAGTests -Dspring.profiles.active=rag,redis
 ```
+
+[↑ Back to table of contents](#table-of-contents)
+
+## Lab 14: Model Context Protocol (MCP) - Client
+
+The Model Context Protocol (MCP) is a standardized protocol for communication between AI applications and external tools. Spring AI provides comprehensive support for both MCP clients and servers. In this lab, you'll learn how to create an MCP client that connects to external MCP servers.
+
+### 14.1 Understanding MCP
+
+MCP enables:
+- Standardized tool exposure and discovery
+- Multiple transport mechanisms (STDIO, SSE, HTTP)
+- Dynamic tool registration and updates
+- Secure, structured communication between AI systems and tools
+
+### 14.2 Adding MCP Client Dependencies
+
+First, add the MCP client starter to your `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    // Existing dependencies...
+    
+    // MCP Client support
+    implementation("org.springframework.ai:spring-ai-starter-mcp-client")
+}
+```
+
+### 14.3 Creating a Simple MCP Client Configuration
+
+Create a configuration file `src/main/resources/application-mcp.properties`:
+
+```properties
+# MCP Client Configuration
+spring.ai.mcp.client.enabled=true
+spring.ai.mcp.client.name=training-mcp-client
+spring.ai.mcp.client.version=1.0.0
+
+# Configure STDIO connection to a file system MCP server
+spring.ai.mcp.client.stdio.connections.filesystem.command=npx
+spring.ai.mcp.client.stdio.connections.filesystem.args=-y,@modelcontextprotocol/server-filesystem,/tmp
+```
+
+### 14.4 Using MCP Tools in Your Application
+
+Create a test class to demonstrate MCP client usage:
+
+```java
+@SpringBootTest
+@ActiveProfiles("mcp")
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
+public class McpClientTests {
+    
+    @Autowired
+    private ChatModel chatModel;  // Uses primary ChatModel (OpenAI)
+    
+    @Autowired(required = false)
+    private List<ToolCallback> mcpTools;  // Auto-discovered MCP tools
+    
+    private ChatClient chatClient;
+    
+    @BeforeEach
+    void setUp() {
+        // Create a chat client with MCP tools if available
+        if (mcpTools != null && !mcpTools.isEmpty()) {
+            chatClient = ChatClient.builder(chatModel)
+                    .defaultToolCallbacks(mcpTools)
+                    .build();
+        } else {
+            chatClient = ChatClient.builder(chatModel).build();
+        }
+    }
+    
+    @Test
+    void listAvailableTools() {
+        if (mcpTools != null) {
+            System.out.println("Available MCP tools: " + mcpTools.size());
+            mcpTools.forEach(tool -> {
+                System.out.println("- Tool callback available: " + tool.getClass().getSimpleName());
+            });
+            
+            assertFalse(mcpTools.isEmpty(), "Should have discovered MCP tools when servers are configured");
+        } else {
+            System.out.println("No MCP tools discovered. This is expected if no MCP servers are configured.");
+        }
+    }
+    
+    @Test
+    void useFileSystemTools() {
+        if (mcpTools == null || mcpTools.isEmpty()) {
+            System.out.println("Skipping filesystem test - no MCP tools available");
+            return;
+        }
+        
+        try {
+            // Ask about files in the configured directory
+            String response = chatClient.prompt()
+                    .user("What files are in the /tmp directory? If you can't access it, just tell me what tools you have available.")
+                    .call()
+                    .content();
+            
+            System.out.println("Filesystem response: " + response);
+            assertNotNull(response);
+            assertFalse(response.isEmpty());
+        } catch (Exception e) {
+            System.out.println("Filesystem test failed (this is expected if MCP server is not running): " + e.getMessage());
+        }
+    }
+    
+    @Test
+    void createAndReadFile() {
+        if (mcpTools == null || mcpTools.isEmpty()) {
+            System.out.println("Skipping file creation test - no MCP tools available");
+            return;
+        }
+        
+        try {
+            // Create a test file
+            String createResponse = chatClient.prompt()
+                    .user("Create a file called spring-ai-test.txt in /tmp with the content 'Hello from Spring AI MCP!'")
+                    .call()
+                    .content();
+            
+            System.out.println("Create response: " + createResponse);
+            
+            // Try to read it back
+            String readResponse = chatClient.prompt()
+                    .user("What are the contents of /tmp/spring-ai-test.txt?")
+                    .call()
+                    .content();
+            
+            System.out.println("Read response: " + readResponse);
+            
+            // Basic validation
+            assertNotNull(createResponse);
+            assertNotNull(readResponse);
+            
+        } catch (Exception e) {
+            System.out.println("File creation/read test failed (expected if MCP server not configured): " + e.getMessage());
+        }
+    }
+}
+```
+
+### 14.5 Connecting to Multiple MCP Servers
+
+You can connect to multiple MCP servers simultaneously. Update your configuration:
+
+```properties
+# File system server
+spring.ai.mcp.client.stdio.connections.filesystem.command=npx
+spring.ai.mcp.client.stdio.connections.filesystem.args=-y,@modelcontextprotocol/server-filesystem,/tmp
+
+# Brave search server (requires BRAVE_API_KEY environment variable)
+spring.ai.mcp.client.stdio.connections.brave.command=npx
+spring.ai.mcp.client.stdio.connections.brave.args=-y,@modelcontextprotocol/server-brave-search
+```
+
+### 14.6 Using SSE Transport
+
+For servers that support Server-Sent Events (SSE), you can use HTTP-based connections:
+
+```properties
+# SSE connection to a local MCP server
+spring.ai.mcp.client.sse.connections.weather.url=http://localhost:8080
+```
+
+### 14.7 Advanced: Custom MCP Client Configuration
+
+Create a configuration class for more control:
+
+```java
+@Configuration
+@Profile("mcp")
+public class McpClientConfig {
+    
+    @Bean
+    McpSyncClientCustomizer mcpClientCustomizer() {
+        return (serverName, spec) -> {
+            // Configure timeout
+            spec.requestTimeout(Duration.ofSeconds(30));
+            
+            // Add tool change listener
+            spec.toolsChangeConsumer(tools -> {
+                System.out.println("Tools updated for " + serverName + ": " + tools.size() + " tools available");
+            });
+            
+            // Add logging
+            spec.loggingConsumer(log -> {
+                System.out.println("[MCP Log] " + log.level() + ": " + log.message());
+            });
+        };
+    }
+}
+```
+
+### 14.8 Exercise: Weather MCP Client
+
+Create a test that connects to a weather MCP server and queries weather information:
+
+```java
+@Test
+void queryWeatherInfo() {
+    // TODO: Configure connection to a weather MCP server
+    // TODO: Use the discovered tools to query current weather
+    // TODO: Ask for a weather forecast
+    // Hint: You might need to mock or create a simple weather server first
+}
+```
+
+[↑ Back to table of contents](#table-of-contents)
+
+## Lab 15: Model Context Protocol (MCP) - Server
+
+In this lab, you'll create your own MCP server that exposes custom tools to AI clients like Claude Desktop or your Spring AI applications.
+
+### 15.1 Adding MCP Server Dependencies
+
+Add the MCP server starter to your `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    // Existing dependencies...
+    
+    // MCP Server support (choose one based on your needs)
+    implementation("org.springframework.ai:spring-ai-starter-mcp-server")  // For STDIO
+    // OR
+    implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")  // For SSE with Spring MVC
+}
+```
+
+### 15.2 Creating Your First MCP Server
+
+Create a simple calculator MCP server:
+
+```java
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CalculatorService {
+    
+    @Tool(description = "Add two numbers together")
+    public double add(double a, double b) {
+        return a + b;
+    }
+    
+    @Tool(description = "Multiply two numbers")
+    public double multiply(double a, double b) {
+        return a * b;
+    }
+    
+    @Tool(description = "Calculate the square root of a number")
+    public double sqrt(double number) {
+        if (number < 0) {
+            throw new IllegalArgumentException("Cannot calculate square root of negative number");
+        }
+        return Math.sqrt(number);
+    }
+    
+    @Tool(description = "Calculate compound interest given principal, annual rate (as percentage), years, and compounding frequency per year")
+    public CompoundInterestResult calculateCompoundInterest(
+            double principal,
+            double annualRate,
+            int years,
+            int compoundingFrequency) {
+        
+        double rate = annualRate / 100;
+        double amount = principal * Math.pow(1 + rate / compoundingFrequency, 
+                                           compoundingFrequency * years);
+        double interest = amount - principal;
+        
+        return new CompoundInterestResult(principal, amount, interest, years, annualRate);
+    }
+    
+    record CompoundInterestResult(
+        double principal,
+        double finalAmount,
+        double totalInterest,
+        int years,
+        double annualRate
+    ) {}
+}
+```
+
+### 15.3 Configuring the MCP Server
+
+Create an MCP server configuration class:
+
+```java
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+
+/**
+ * Configuration class for MCP Server functionality (Lab 15).
+ * 
+ * This configuration is activated when the 'mcp-server' profile is enabled.
+ * The CalculatorService @Tool annotated methods are automatically discovered
+ * by Spring AI's MCP server auto-configuration.
+ */
+@Configuration
+@Profile("mcp-server")
+public class McpServerConfig {
+    
+    /**
+     * Application runner that logs MCP server startup information.
+     * This helps developers understand what tools are being exposed.
+     */
+    @Bean
+    public ApplicationRunner mcpServerStartupLogger() {
+        return args -> {
+            System.out.println("\n=== MCP Server Started ===");
+            System.out.println("Profile: mcp-server");
+            System.out.println("Available tools from CalculatorService:");
+            System.out.println("  • add(double, double) - Add two numbers");
+            System.out.println("  • subtract(double, double) - Subtract numbers");
+            System.out.println("  • multiply(double, double) - Multiply numbers");
+            System.out.println("  • divide(double, double) - Divide numbers");
+            System.out.println("  • sqrt(double) - Square root");
+            System.out.println("  • power(double, double) - Power calculation");
+            System.out.println("  • calculateCompoundInterest(...) - Compound interest");
+            System.out.println("  • calculatePercentage(double, double) - Percentage");
+            System.out.println("\nConnect to this server using:");
+            System.out.println("  • Claude Desktop MCP configuration");
+            System.out.println("  • STDIO transport mode");
+            System.out.println("  • SSE transport mode (uncomment config in properties)");
+            System.out.println("========================\n");
+        };
+    }
+    
+    // The CalculatorService with @Tool annotated methods is automatically
+    // discovered by Spring AI's MCP server auto-configuration.
+    // No explicit tool registration is required.
+}
+```
+
+Configure the server in `application-mcp-server.properties`:
+
+```properties
+# MCP Server Configuration
+spring.ai.mcp.server.name=calculator-server
+spring.ai.mcp.server.version=1.0.0
+spring.ai.mcp.server.type=SYNC
+
+# For STDIO mode (works with Claude Desktop)
+spring.ai.mcp.server.stdio=true
+spring.main.web-application-type=none
+logging.pattern.console=
+
+# For SSE mode (HTTP-based)
+# spring.ai.mcp.server.stdio=false
+# spring.ai.mcp.server.sse-message-endpoint=/mcp/messages
+```
+
+### 15.4 Testing Your MCP Server
+
+Create a test to verify your server works:
+
+```java
+@SpringBootTest
+@ActiveProfiles("mcp-server")
+public class McpServerTests {
+    
+    @Autowired
+    private CalculatorService calculatorService;
+    
+    @Test
+    void contextLoads() {
+        // Basic test to ensure Spring context loads with MCP server profile
+        assertNotNull(calculatorService);
+    }
+    
+    @Test
+    void calculatorServiceFunctionality() {
+        // Test the calculator service directly
+        assertEquals(5.0, calculatorService.add(2, 3), 0.001);
+        assertEquals(1.0, calculatorService.subtract(3, 2), 0.001);
+        assertEquals(6.0, calculatorService.multiply(2, 3), 0.001);
+        assertEquals(2.0, calculatorService.divide(6, 3), 0.001);
+        assertEquals(3.0, calculatorService.sqrt(9), 0.001);
+        assertEquals(8.0, calculatorService.power(2, 3), 0.001);
+        assertEquals(15.0, calculatorService.calculatePercentage(15, 100), 0.001);
+    }
+    
+    @Test
+    void calculatorServiceErrorHandling() {
+        // Test error conditions
+        assertThrows(IllegalArgumentException.class, () -> 
+            calculatorService.divide(5, 0));
+        
+        assertThrows(IllegalArgumentException.class, () -> 
+            calculatorService.sqrt(-4));
+    }
+    
+    @Test
+    void verifyMcpServerProfile() {
+        // Test that the MCP server profile is active and the CalculatorService is available
+        assertNotNull(calculatorService, "CalculatorService should be available");
+        
+        System.out.println("MCP Server profile is active");
+        System.out.println("CalculatorService is available with @Tool annotated methods:");
+        System.out.println("- add(double, double)");
+        System.out.println("- subtract(double, double)"); 
+        System.out.println("- multiply(double, double)");
+        System.out.println("- divide(double, double)");
+        System.out.println("- sqrt(double)");
+        System.out.println("- power(double, double)");
+        System.out.println("- calculateCompoundInterest(double, double, int, int)");
+        System.out.println("- calculatePercentage(double, double)");
+        
+        System.out.println("\nNote: Spring AI MCP auto-configuration should automatically");
+        System.out.println("discover and expose these @Tool methods to MCP clients.");
+    }
+}
+```
+
+### 15.5 Integrating with Claude Desktop
+
+To use your server with Claude Desktop:
+
+1. Build your server JAR:
+```bash
+./gradlew bootJar
+```
+
+2. Add to Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "calculator": {
+      "command": "java",
+      "args": [
+        "-Dspring.profiles.active=mcp-server",
+        "-jar",
+        "/path/to/your/build/libs/springaicourse-0.0.1-SNAPSHOT.jar"
+      ]
+    }
+  }
+}
+```
+
+3. Restart Claude Desktop and test your tools!
+
+### 15.6 Advanced: Adding Resources and Prompts
+
+MCP servers can also provide resources (data) and prompt templates:
+
+```java
+@Configuration
+public class McpServerAdvancedConfig {
+    
+    @Bean
+    public List<McpServerFeatures.SyncResourceSpecification> resources() {
+        // Define a resource that provides system information
+        var systemInfoResource = new McpSchema.Resource(
+            "system-info",
+            "Current system information",
+            "application/json"
+        );
+        
+        return List.of(
+            new McpServerFeatures.SyncResourceSpecification(
+                systemInfoResource,
+                (exchange, request) -> {
+                    var info = Map.of(
+                        "java_version", System.getProperty("java.version"),
+                        "os", System.getProperty("os.name"),
+                        "timestamp", Instant.now().toString()
+                    );
+                    
+                    return new McpSchema.ReadResourceResult(
+                        List.of(new McpSchema.ResourceContent(
+                            request.uri(),
+                            "application/json",
+                            new ObjectMapper().writeValueAsString(info)
+                        ))
+                    );
+                }
+            )
+        );
+    }
+    
+    @Bean
+    public List<McpServerFeatures.PromptSpecification> prompts() {
+        // Define reusable prompt templates
+        return List.of(
+            new McpServerFeatures.PromptSpecification(
+                new McpSchema.Prompt(
+                    "investment-advisor",
+                    "Calculate investment returns",
+                    List.of(
+                        new McpSchema.PromptArgument(
+                            "principal",
+                            "Initial investment amount",
+                            true
+                        ),
+                        new McpSchema.PromptArgument(
+                            "years",
+                            "Investment period in years",
+                            true
+                        )
+                    )
+                ),
+                args -> new McpSchema.GetPromptResult(
+                    "Calculate compound interest for $" + args.get("principal") + 
+                    " over " + args.get("years") + " years at various rates",
+                    List.of(
+                        new McpSchema.PromptMessage(
+                            McpSchema.Role.user,
+                            new McpSchema.TextContent(
+                                "Calculate returns for conservative (4%), moderate (7%), " +
+                                "and aggressive (10%) investment strategies"
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+}
+```
+
+### 15.7 Exercise: Create a System Diagnostics MCP Server
+
+Building on the calculator example, create an MCP server that provides system diagnostic tools:
+
+```java
+@Service
+public class SystemDiagnosticsService {
+    
+    @Tool(description = "Get current memory usage statistics")
+    public MemoryStats getMemoryUsage() {
+        // TODO: Implement memory statistics
+        // Hint: Use Runtime.getRuntime() or ManagementFactory.getMemoryMXBean()
+    }
+    
+    @Tool(description = "List running Java threads")
+    public List<ThreadInfo> getActiveThreads() {
+        // TODO: Implement thread listing
+        // Hint: Use ManagementFactory.getThreadMXBean()
+    }
+    
+    @Tool(description = "Get system properties filtered by prefix (e.g., 'java' for Java-related properties)")
+    public Map<String, String> getSystemProperties(String prefix) {
+        // TODO: Implement filtered system properties
+    }
+}
+```
+
+### 15.8 Best Practices for MCP Servers
+
+1. **Tool Naming**: Use clear, action-oriented names (e.g., `calculateTax` not `tax`)
+2. **Descriptions**: Provide detailed descriptions for tools and parameters
+3. **Error Handling**: Return meaningful error messages that AI can understand
+4. **Validation**: Validate inputs and provide clear constraints
+5. **Logging**: Use Spring's logging for debugging (but configure appropriately for STDIO mode)
+6. **Testing**: Test both the tools themselves and their MCP integration
 
 [↑ Back to table of contents](#table-of-contents)
 
@@ -1679,5 +2060,7 @@ Congratulations! You've completed a comprehensive tour of Spring AI's capabiliti
 - Enhance AI responses with external content using prompt stuffing
 - Build a Retrieval-Augmented Generation (RAG) system for accurate, grounded responses
 - Use Redis as a persistent vector store for production RAG applications
+- Create MCP clients to connect to external tool servers
+- Build MCP servers to expose your own tools to AI systems
 
 These skills provide a solid foundation for building AI-powered applications using the Spring ecosystem.
