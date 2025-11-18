@@ -5,8 +5,8 @@ import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.openai.*;
 import org.springframework.ai.openai.api.OpenAiAudioApi;
-import org.springframework.ai.openai.audio.speech.SpeechPrompt;
-import org.springframework.ai.openai.audio.speech.SpeechResponse;
+import org.springframework.ai.audio.tts.TextToSpeechPrompt;
+import org.springframework.ai.audio.tts.TextToSpeechResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,7 +32,7 @@ class AudioTests {
     @Test
     void testTextToSpeech(@Autowired OpenAiAudioSpeechModel speechModel) throws IOException {
         // TODO: Implement text-to-speech conversion
-        // 1. Create a SpeechPrompt with text to convert
+        // 1. Create a TextToSpeechPrompt with text to convert
         // 2. Use speechModel.call() to generate audio
         // 3. Save the result to an MP3 file in src/main/resources/
         // 4. Print confirmation message

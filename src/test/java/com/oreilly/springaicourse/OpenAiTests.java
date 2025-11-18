@@ -6,7 +6,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.image.Image;
 import org.springframework.ai.image.ImagePrompt;
 import org.springframework.ai.image.ImageResponse;
@@ -64,6 +66,21 @@ class OpenAiTests {
         // TODO: Create a simple chat interaction
         // Use chatClient.prompt().user("Why is the sky blue?").call().content()
         // Print the response
+
+        chatClient = ChatClient.builder(model)
+                .defaultOptions(ChatOptions.builder()
+                        .temperature(1.0)
+                        .build())
+                .build();
+        ChatResponse chatResponse = chatClient.prompt()
+                .user("Why is the sky blue?")
+                .call()
+                .chatResponse();
+        assertNotNull(chatResponse);
+        ChatResponseMetadata metadata = chatResponse.getMetadata();
+        System.out.println(metadata.getModel());
+        System.out.println(metadata.getUsage());
+        System.out.println(chatResponse.getResult().getOutput().getText());
     }
 
     @Test

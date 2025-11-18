@@ -9,7 +9,7 @@ version = "0.0.1-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -17,7 +17,7 @@ repositories {
     mavenCentral()
 }
 
-extra["springAiVersion"] = "1.0.0"
+extra["springAiVersion"] = "1.1.0"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
