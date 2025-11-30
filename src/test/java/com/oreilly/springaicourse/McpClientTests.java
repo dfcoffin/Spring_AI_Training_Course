@@ -4,7 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class McpClientTests {
     
     @Autowired
-    private ChatModel chatModel;
+    private OpenAiChatModel chatModel;
     
     @Autowired(required = false)
     private List<ToolCallback> mcpTools;  // Auto-discovered MCP tools
@@ -39,12 +40,18 @@ public class McpClientTests {
     @BeforeEach
     void setUp() {
         // Create a chat client with the specified model and MCP tools if available
+        // Set temperature to 1.0 as required by gpt-5-nano
+        ChatOptions chatOptions = ChatOptions.builder().temperature(1.0).build();
+        
         if (mcpTools != null && !mcpTools.isEmpty()) {
             chatClient = ChatClient.builder(chatModel)
+                    .defaultOptions(chatOptions)
                     .defaultToolCallbacks(mcpTools)
                     .build();
         } else {
-            chatClient = ChatClient.builder(chatModel).build();
+            chatClient = ChatClient.builder(chatModel)
+                    .defaultOptions(chatOptions)
+                    .build();
         }
     }
     

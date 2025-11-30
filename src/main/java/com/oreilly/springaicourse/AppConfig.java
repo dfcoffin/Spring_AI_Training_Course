@@ -10,7 +10,9 @@ import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.redis.RedisVectorStore;
 import org.springframework.beans.factory.annotation.Value;
+import redis.clients.jedis.JedisPooled;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -54,11 +56,13 @@ public class AppConfig {
         return SimpleVectorStore.builder(embeddingModel).build();
     }
 
-    // TODO: Add Redis VectorStore configuration
-    // @Bean
-    // @Profile("redis") 
-    // VectorStore redisVectorStore(...) {
-    //     // Configure Redis-based vector store for persistence
-    // }
+    @Bean
+    @Profile("redis")
+    VectorStore redisVectorStore(EmbeddingModel embeddingModel) {
+        return RedisVectorStore.builder(new JedisPooled("localhost", 6379), embeddingModel)
+                .indexName("spring-ai-index")
+                .initializeSchema(true)
+                .build();
+    }
 
 }

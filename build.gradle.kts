@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.5.4"
+    id("org.springframework.boot") version "3.5.8"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -29,7 +29,7 @@ dependencies {
     // Vector Stores
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
     // Note: Redis vector store dependency should be added only when needed:
-    // implementation("org.springframework.ai:spring-ai-starter-vector-store-redis")
+    implementation("org.springframework.ai:spring-ai-starter-vector-store-redis")
 
     // Document Readers
     implementation("org.springframework.ai:spring-ai-jsoup-document-reader")

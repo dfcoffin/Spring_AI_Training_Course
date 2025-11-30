@@ -20,7 +20,7 @@ public class DocumentReaderTests {
 
     @Test
     void retrieveContentFromUrl() {
-        String url = "https://en.wikipedia.org/wiki/Java_(programming_language)";
+        String url = "https://spring.io";
         List<Document> documents = new JsoupDocumentReader(url).get();
         splitDocuments(documents);
     }
