@@ -172,8 +172,8 @@ Spring_AI_Training_Course/
 <v-clicks>
 
 - **Java 17+**
-- **Spring Boot 3.5.4**
-- **Spring AI 1.0.0**
+- **Spring Boot 3.5.8**
+- **Spring AI 1.1.0**
 - **Git** for branch management
 - **Redis** (optional, for advanced RAG)
 
@@ -198,6 +198,8 @@ git clone <repo-url>
 ./gradlew build
 ./gradlew test
 ```
+
+**Note:** Using `gpt-5-nano` and `claude-opus-4-1`
 
 </div>
 
@@ -861,14 +863,18 @@ void shouldAnswerFromDocuments() {
 
 # Lab 13: Production RAG with Redis
 
-```java {1-8|10-14}
+```java {1-9|11-15}
 @Configuration
 @Profile("redis")  
 public class RedisRAGConfig {
     
     @Bean
-    public VectorStore vectorStore(RedisConnectionFactory factory) {
-        return new RedisVectorStore(factory, embeddingModel());
+    public VectorStore redisVectorStore(EmbeddingModel embeddingModel) {
+        // Spring AI 1.1.0 requires JedisPooled as first parameter
+        return RedisVectorStore.builder(new JedisPooled("localhost", 6379), embeddingModel)
+                .indexName("spring-ai-index")
+                .initializeSchema(true)
+                .build();
     }
     
     @Bean
@@ -1121,13 +1127,16 @@ public class AIConfiguration {
 
 ```java
 @Bean
-@ConditionalOnProfile({"rag", "redis"})
-public VectorStore redisVectorStore(RedisConnectionFactory factory) {
-    return new RedisVectorStore(factory, embeddingModel());
+@Profile("redis")
+public VectorStore redisVectorStore(EmbeddingModel embeddingModel) {
+    return RedisVectorStore.builder(new JedisPooled("localhost", 6379), embeddingModel)
+            .indexName("spring-ai-index")
+            .initializeSchema(true)
+            .build();
 }
 
 @Bean
-@ConditionalOnProfile("mcp")
+@Profile("mcp")
 public McpClientConfiguration mcpConfig() {
     return new McpClientConfiguration();
 }

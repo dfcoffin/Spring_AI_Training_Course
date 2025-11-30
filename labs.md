@@ -2,7 +2,7 @@
 
 This series of labs will guide you through building a Spring AI application that uses various capabilities of large language models via the Spring AI abstraction layer. By the end of these exercises, you'll have hands-on experience with text generation, structured data extraction, prompt templates, chat memory, vision capabilities, and more.
 
-> **Note:** This project uses Spring Boot 3.5.4 and Spring AI 1.0.0. Spring AI 1.0.0 includes significant API changes, including using builder patterns for constructing advisors like `MessageChatMemoryAdvisor`.
+> **Note:** This project uses Spring Boot 3.5.8 and Spring AI 1.1.0. Spring AI 1.1.0 includes significant API changes, including using builder patterns for constructing advisors like `MessageChatMemoryAdvisor`, and updated vector store implementations.
 
 ## Table of Contents
 
@@ -37,7 +37,16 @@ This series of labs will guide you through building a Spring AI application that
    export ANTHROPIC_API_KEY=your_anthropic_api_key  # Optional, for Claude exercises
    ```
 
-3. Check that the project builds successfully:
+3. **Model Configuration Note**: This course uses `gpt-5-nano` (OpenAI) and `claude-opus-4-1` (Anthropic). These models have specific requirements:
+   - `gpt-5-nano` only supports `temperature=1.0` (the default value)
+   - When using `ChatClient.builder()`, explicitly set temperature if needed:
+     ```java
+     ChatClient chatClient = ChatClient.builder(model)
+         .defaultOptions(ChatOptions.builder().temperature(1.0).build())
+         .build();
+     ```
+
+4. Check that the project builds successfully:
    ```bash
    ./gradlew build
    ```
@@ -1429,7 +1438,24 @@ public class AppConfig {
     VectorStore simpleVectorStore(EmbeddingModel embeddingModel) {
         return SimpleVectorStore.builder(embeddingModel).build();
     }
+
+    @Bean
+    @Profile("redis")
+    VectorStore redisVectorStore(EmbeddingModel embeddingModel) {
+        // Spring AI 1.1.0 requires JedisPooled as first parameter
+        return RedisVectorStore.builder(new JedisPooled("localhost", 6379), embeddingModel)
+                .indexName("spring-ai-index")
+                .initializeSchema(true)
+                .build();
+    }
 }
+```
+
+**Important Note for Spring AI 1.1.0:** The `RedisVectorStore` builder now requires a `JedisPooled` instance as the first parameter. You'll need to add the import:
+
+```java
+import org.springframework.ai.vectorstore.redis.RedisVectorStore;
+import redis.clients.jedis.JedisPooled;
 ```
 
 The key changes are:
