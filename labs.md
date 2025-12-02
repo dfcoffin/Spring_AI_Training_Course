@@ -15,8 +15,8 @@ This series of labs will guide you through building a Spring AI application that
 - [Lab 6: Chat Memory](#lab-6-chat-memory)
 - [Lab 7: Vision Capabilities](#lab-7-vision-capabilities)
 - [Lab 8: Image Generation](#lab-8-image-generation)
-- [Lab 9: AI Tools](#lab-9-ai-tools)
-- [Lab 10: Audio Capabilities](#lab-10-audio-capabilities)
+- [Lab 9: Audio Capabilities](#lab-9-audio-capabilities)
+- [Lab 10: AI Tools](#lab-10-ai-tools)
 - [Lab 11: Refactoring for Production](#lab-11-refactoring-for-production)
 - [Lab 12: Retrieval-Augmented Generation (RAG)](#lab-12-retrieval-augmented-generation-rag)
 - [Lab 13: Redis Vector Store for RAG](#lab-13-redis-vector-store-for-rag)
@@ -650,60 +650,9 @@ You can change the file name and format as needed. For DALL-E 3 model, you can s
 
 [↑ Back to table of contents](#table-of-contents)
 
-## Lab 9: AI Tools
+## Lab 9: Audio Capabilities
 
-### 9.1 Create a Tool
-
-Create a DateTimeTools class that the AI can use:
-
-```java
-class DateTimeTools {
-    private final Logger logger = LoggerFactory.getLogger(DateTimeTools.class);
-
-    @Tool(description = "Get the current date and time in the user's timezone")
-    String getCurrentDateTime() {
-        logger.info("Getting current date and time in the user's timezone");
-        return LocalDateTime.now().atZone(LocaleContextHolder.getTimeZone().toZoneId()).toString();
-    }
-
-    @Tool(description = "Set a user alarm for the given time, provided in ISO-8601 format")
-    void setAlarm(String time) {
-        LocalDateTime alarmTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_DATE_TIME);
-        System.out.println("Alarm set for " + alarmTime);
-    }
-}
-```
-
-### 9.2 Use the Tools
-
-Create a test that uses the annotated methods:
-
-```java
-@Test
-void useDateTimeTools() {
-    ChatClient chatClient = ChatClient.create(model);
-    
-    String response = chatClient.prompt()
-            .user("What day is tomorrow?")
-            .tools(new DateTimeTools())
-            .call()
-            .content();
-    System.out.println(response);
-
-    String alarmTime = chatClient.prompt()
-            .user("Set an alarm for ten minutes from now")
-            .tools(new DateTimeTools())
-            .call()
-            .content();
-    System.out.println(alarmTime);
-}
-```
-
-[↑ Back to table of contents](#table-of-contents)
-
-## Lab 10: Audio Capabilities
-
-### 10.1 Text-to-Speech (TTS)
+### 9.1 Text-to-Speech (TTS)
 
 Create a test that generates speech from text. Note that Spring AI 1.1.0 introduced a new portable TTS API using `TextToSpeechPrompt` and `TextToSpeechResponse` from `org.springframework.ai.audio.tts`:
 
@@ -732,7 +681,7 @@ void textToSpeech(@Autowired OpenAiAudioSpeechModel speechModel) {
 }
 ```
 
-### 10.2 Speech-to-Text (Transcription)
+### 9.2 Speech-to-Text (Transcription)
 
 First, autowire in the `src/main/resources/audio/tftjs.mp3`:
 
@@ -746,7 +695,7 @@ Then create a test that transcribes speech to text:
 ```java
 @Test
 void speechToText(@Autowired OpenAiAudioTranscriptionModel transcriptionModel) {
-    
+
     // Optional configuration
     OpenAiAudioTranscriptionOptions options = OpenAiAudioTranscriptionOptions.builder()
             .language("en")
@@ -759,6 +708,57 @@ void speechToText(@Autowired OpenAiAudioTranscriptionModel transcriptionModel) {
     AudioTranscriptionResponse response = transcriptionModel.call(prompt);
     assertNotNull(response);
     System.out.println("Transcription: " + response.getResult().getOutput());
+}
+```
+
+[↑ Back to table of contents](#table-of-contents)
+
+## Lab 10: AI Tools
+
+### 10.1 Create a Tool
+
+Create a DateTimeTools class that the AI can use:
+
+```java
+class DateTimeTools {
+    private final Logger logger = LoggerFactory.getLogger(DateTimeTools.class);
+
+    @Tool(description = "Get the current date and time in the user's timezone")
+    String getCurrentDateTime() {
+        logger.info("Getting current date and time in the user's timezone");
+        return LocalDateTime.now().atZone(LocaleContextHolder.getTimeZone().toZoneId()).toString();
+    }
+
+    @Tool(description = "Set a user alarm for the given time, provided in ISO-8601 format")
+    void setAlarm(String time) {
+        LocalDateTime alarmTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_DATE_TIME);
+        System.out.println("Alarm set for " + alarmTime);
+    }
+}
+```
+
+### 10.2 Use the Tools
+
+Create a test that uses the annotated methods:
+
+```java
+@Test
+void useDateTimeTools() {
+    ChatClient chatClient = ChatClient.create(model);
+    
+    String response = chatClient.prompt()
+            .user("What day is tomorrow?")
+            .tools(new DateTimeTools())
+            .call()
+            .content();
+    System.out.println(response);
+
+    String alarmTime = chatClient.prompt()
+            .user("Set an alarm for ten minutes from now")
+            .tools(new DateTimeTools())
+            .call()
+            .content();
+    System.out.println(alarmTime);
 }
 ```
 
@@ -2086,8 +2086,8 @@ Congratulations! You've completed a comprehensive tour of Spring AI's capabiliti
 - Maintain conversation state with chat memory
 - Work with vision capabilities for image analysis
 - Generate images using AI models
-- Extend AI capabilities with custom tools
 - Process audio with text-to-speech and speech-to-text
+- Extend AI capabilities with custom tools
 - Enhance AI responses with external content using prompt stuffing
 - Build a Retrieval-Augmented Generation (RAG) system for accurate, grounded responses
 - Use Redis as a persistent vector store for production RAG applications
