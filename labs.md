@@ -383,7 +383,14 @@ First, create a template file at `src/main/resources/movie_prompt.st`:
 Tell me the names of {number} movies whose soundtrack was composed by {composer}
 ```
 
-Then create a test that loads this template:
+Next, autowire the template resource into your test class using the `@Value` annotation:
+
+```java
+@Value("classpath:movie_prompt.st")
+private Resource promptTemplate;
+```
+
+Then create a test that uses this template:
 
 ```java
 @Test
