@@ -1550,29 +1550,30 @@ spring.ai.mcp.client.enabled=true
 spring.ai.mcp.client.name=training-mcp-client
 spring.ai.mcp.client.version=1.0.0
 
-# Configure STDIO connection to a file system MCP server
-spring.ai.mcp.client.stdio.connections.filesystem.command=npx
-spring.ai.mcp.client.stdio.connections.filesystem.args=-y,@modelcontextprotocol/server-filesystem,/tmp
+# Configure STDIO connection to Context7 MCP server for library documentation
+# Context7 provides up-to-date documentation for libraries and frameworks
+spring.ai.mcp.client.stdio.connections.context7.command=npx
+spring.ai.mcp.client.stdio.connections.context7.args=-y,@upstash/context7-mcp@latest
 ```
 
 ### 14.4 Using MCP Tools in Your Application
 
-Create a test class to demonstrate MCP client usage:
+Create a test class to demonstrate MCP client usage with Context7:
 
 ```java
 @SpringBootTest
 @ActiveProfiles("mcp")
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 public class McpClientTests {
-    
+
     @Autowired
     private ChatModel chatModel;  // Uses primary ChatModel (OpenAI)
-    
+
     @Autowired(required = false)
     private List<ToolCallback> mcpTools;  // Auto-discovered MCP tools
-    
+
     private ChatClient chatClient;
-    
+
     @BeforeEach
     void setUp() {
         // Create a chat client with MCP tools if available
@@ -1584,7 +1585,7 @@ public class McpClientTests {
             chatClient = ChatClient.builder(chatModel).build();
         }
     }
-    
+
     @Test
     void listAvailableTools() {
         if (mcpTools != null) {
@@ -1592,65 +1593,56 @@ public class McpClientTests {
             mcpTools.forEach(tool -> {
                 System.out.println("- Tool callback available: " + tool.getClass().getSimpleName());
             });
-            
+
             assertFalse(mcpTools.isEmpty(), "Should have discovered MCP tools when servers are configured");
         } else {
             System.out.println("No MCP tools discovered. This is expected if no MCP servers are configured.");
         }
     }
-    
+
     @Test
-    void useFileSystemTools() {
+    void lookupLibraryDocumentation() {
         if (mcpTools == null || mcpTools.isEmpty()) {
-            System.out.println("Skipping filesystem test - no MCP tools available");
+            System.out.println("Skipping Context7 test - no MCP tools available");
             return;
         }
-        
+
         try {
-            // Ask about files in the configured directory
+            // Use Context7 to look up Spring AI documentation
             String response = chatClient.prompt()
-                    .user("What files are in the /tmp directory? If you can't access it, just tell me what tools you have available.")
+                    .user("Using Context7, find documentation about ChatClient in Spring AI. " +
+                          "What are the main methods available?")
                     .call()
                     .content();
-            
-            System.out.println("Filesystem response: " + response);
+
+            System.out.println("Context7 documentation response: " + response);
             assertNotNull(response);
             assertFalse(response.isEmpty());
         } catch (Exception e) {
-            System.out.println("Filesystem test failed (this is expected if MCP server is not running): " + e.getMessage());
+            System.out.println("Context7 test failed: " + e.getMessage());
         }
     }
-    
+
     @Test
-    void createAndReadFile() {
+    void getFrameworkExamples() {
         if (mcpTools == null || mcpTools.isEmpty()) {
-            System.out.println("Skipping file creation test - no MCP tools available");
+            System.out.println("Skipping Context7 example test - no MCP tools available");
             return;
         }
-        
+
         try {
-            // Create a test file
-            String createResponse = chatClient.prompt()
-                    .user("Create a file called spring-ai-test.txt in /tmp with the content 'Hello from Spring AI MCP!'")
+            // Ask for code examples from documentation
+            String response = chatClient.prompt()
+                    .user("Using Context7, show me examples of how to use prompt templates " +
+                          "in Spring AI. Include any code snippets from the documentation.")
                     .call()
                     .content();
-            
-            System.out.println("Create response: " + createResponse);
-            
-            // Try to read it back
-            String readResponse = chatClient.prompt()
-                    .user("What are the contents of /tmp/spring-ai-test.txt?")
-                    .call()
-                    .content();
-            
-            System.out.println("Read response: " + readResponse);
-            
-            // Basic validation
-            assertNotNull(createResponse);
-            assertNotNull(readResponse);
-            
+
+            System.out.println("Context7 examples response: " + response);
+            assertNotNull(response);
+            assertFalse(response.isEmpty());
         } catch (Exception e) {
-            System.out.println("File creation/read test failed (expected if MCP server not configured): " + e.getMessage());
+            System.out.println("Context7 examples test failed: " + e.getMessage());
         }
     }
 }
@@ -1658,16 +1650,56 @@ public class McpClientTests {
 
 ### 14.5 Connecting to Multiple MCP Servers
 
-You can connect to multiple MCP servers simultaneously. Update your configuration:
+You can connect to multiple MCP servers simultaneously. This example configures both Context7 for library documentation and Tavily for AI-optimized web search:
 
 ```properties
-# File system server
-spring.ai.mcp.client.stdio.connections.filesystem.command=npx
-spring.ai.mcp.client.stdio.connections.filesystem.args=-y,@modelcontextprotocol/server-filesystem,/tmp
+# Context7 server for library documentation lookup
+spring.ai.mcp.client.stdio.connections.context7.command=npx
+spring.ai.mcp.client.stdio.connections.context7.args=-y,@upstash/context7-mcp@latest
 
-# Brave search server (requires BRAVE_API_KEY environment variable)
-spring.ai.mcp.client.stdio.connections.brave.command=npx
-spring.ai.mcp.client.stdio.connections.brave.args=-y,@modelcontextprotocol/server-brave-search
+# Tavily search server (requires TAVILY_API_KEY environment variable)
+# Tavily provides AI-optimized search results, ideal for RAG and AI agents
+spring.ai.mcp.client.stdio.connections.tavily.command=npx
+spring.ai.mcp.client.stdio.connections.tavily.args=-y,tavily-mcp@latest
+```
+
+To use Tavily, you'll need to set the `TAVILY_API_KEY` environment variable. You can get a free API key at https://tavily.com.
+
+Here's a test that demonstrates using both servers together:
+
+```java
+@Test
+void combineDocumentationAndWebSearch() {
+    if (mcpTools == null || mcpTools.isEmpty()) {
+        System.out.println("Skipping combined test - no MCP tools available");
+        return;
+    }
+
+    try {
+        // First, get documentation context
+        String docsResponse = chatClient.prompt()
+                .user("Using Context7, what is the recommended way to implement " +
+                      "RAG (Retrieval-Augmented Generation) in Spring AI?")
+                .call()
+                .content();
+
+        System.out.println("Documentation response: " + docsResponse);
+
+        // Then, search for recent community discussions or updates
+        String searchResponse = chatClient.prompt()
+                .user("Using Tavily, search for recent blog posts or tutorials about " +
+                      "Spring AI RAG implementation best practices from 2024-2025.")
+                .call()
+                .content();
+
+        System.out.println("Web search response: " + searchResponse);
+
+        assertNotNull(docsResponse);
+        assertNotNull(searchResponse);
+    } catch (Exception e) {
+        System.out.println("Combined test failed: " + e.getMessage());
+    }
+}
 ```
 
 ### 14.6 Using SSE Transport
@@ -1708,19 +1740,25 @@ public class McpClientConfig {
 }
 ```
 
-### 14.8 Exercise: Weather MCP Client
+### 14.8 Exercise: Research Assistant
 
-Create a test that connects to a weather MCP server and queries weather information:
+Create a test that combines Context7 and Tavily to build a research assistant that can answer questions using both official documentation and current web content:
 
 ```java
 @Test
-void queryWeatherInfo() {
-    // TODO: Configure connection to a weather MCP server
-    // TODO: Use the discovered tools to query current weather
-    // TODO: Ask for a weather forecast
-    // Hint: You might need to mock or create a simple weather server first
+void researchAssistant() {
+    // TODO: Create a prompt that asks about a Spring AI feature
+    // TODO: First use Context7 to get official documentation
+    // TODO: Then use Tavily to find real-world examples and discussions
+    // TODO: Combine the results into a comprehensive answer
+
+    // Example question to research:
+    // "How do I implement function calling (tools) in Spring AI,
+    //  and what are some real-world use cases?"
 }
 ```
+
+**Bonus Challenge**: Create a service class that abstracts the research pattern, automatically querying both documentation and web sources for any given topic.
 
 [↑ Back to table of contents](#table-of-contents)
 
