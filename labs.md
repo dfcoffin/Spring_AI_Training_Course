@@ -433,15 +433,14 @@ void defaultRequestsAreStateless() {
 
     System.out.println("Initial query:");
     String answer1 = chatClient.prompt()
-            .user(u -> u
-                    .text("My name is Inigo Montoya. You killed my father. Prepare to die."))
+            .user("My name is Inigo Montoya. You killed my father. Prepare to die.")
             .call()
             .content();
     System.out.println(answer1);
 
     System.out.println("Second query:");
     String answer2 = chatClient.prompt()
-            .user(u -> u.text("Who am I?"))
+            .user("Who am I?")
             .call()
             .content();
     System.out.println(answer2);
@@ -478,8 +477,7 @@ void requestsWithMemory() {
     System.out.println("Initial query with memory:");
     String answer1 = chatClient.prompt()
             .advisors(MessageChatMemoryAdvisor.builder(memory).build())
-            .user(u -> u
-                    .text("My name is Inigo Montoya. You killed my father. Prepare to die."))
+            .user("My name is Inigo Montoya. You killed my father. Prepare to die.")
             .call()
             .content();
     System.out.println(answer1);
@@ -487,7 +485,7 @@ void requestsWithMemory() {
     System.out.println("Second query with memory:");
     String answer2 = chatClient.prompt()
             .advisors(MessageChatMemoryAdvisor.builder(memory).build())
-            .user(u -> u.text("Who am I?"))
+            .user("Who am I?")
             .call()
             .content();
     System.out.println(answer2);
