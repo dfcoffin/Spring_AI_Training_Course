@@ -1,6 +1,6 @@
 ---
 theme: seriph
-background: https://source.unsplash.com/1920x1080/?ai,technology
+background: https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1920
 class: text-center
 highlighter: shiki
 lineNumbers: true
@@ -57,7 +57,7 @@ Kousen IT, Inc.
 layout: two-cols
 ---
 
-# What You'll Learn
+# What You'll Learn: Foundations
 
 <v-clicks>
 
@@ -65,6 +65,23 @@ layout: two-cols
 - **Streaming Responses**: Real-time AI interactions
 - **Structured Data**: AI-powered object extraction
 - **Multimodal AI**: Vision and audio capabilities
+
+</v-clicks>
+
+::right::
+
+<div class="mt-8">
+<img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=350&h=400&fit=crop&brightness=1.2" alt="AI and Spring" class="rounded-lg opacity-80" />
+</div>
+
+---
+layout: two-cols
+---
+
+# What You'll Learn: Advanced
+
+<v-clicks>
+
 - **Function Calling**: Extend AI with custom tools
 - **RAG Systems**: Knowledge-augmented AI
 - **MCP Protocol**: Model Context Protocol implementation
@@ -75,7 +92,7 @@ layout: two-cols
 ::right::
 
 <div class="mt-8">
-<img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=350&h=400&fit=crop&brightness=1.2" alt="AI and Spring" class="rounded-lg opacity-80" />
+<img src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=350&h=400&fit=crop&brightness=1.2" alt="Code and AI" class="rounded-lg opacity-80" />
 </div>
 
 <!-- Presenter notes: Emphasize hands-on nature, 15 progressive labs -->
@@ -599,22 +616,23 @@ public class AudioService {
 
 # Lab 11: Text-to-Speech
 
-```java {1-8|10-16}
+```java {1-8|10-17}
 @Service
 public class SpeechService {
-    private final AudioSpeechModel speechModel;
-    
-    public SpeechService(AudioSpeechModel speechModel) {
+    private final OpenAiAudioSpeechModel speechModel;
+
+    public SpeechService(OpenAiAudioSpeechModel speechModel) {
         this.speechModel = speechModel;
     }
-    
+
     public byte[] generateSpeech(String text) {
-        AudioSpeechPrompt prompt = new AudioSpeechPrompt(text,
-            AudioSpeechOptionsBuilder.builder()
-                .withModel("tts-1")
-                .withVoice(AudioSpeechOptions.Voice.ALLOY)
+        // Spring AI 1.1.0: Use TextToSpeechPrompt for portability
+        TextToSpeechPrompt prompt = new TextToSpeechPrompt(text,
+            OpenAiAudioSpeechOptions.builder()
+                .voice(OpenAiAudioApi.SpeechRequest.Voice.ALLOY)
+                .responseFormat(OpenAiAudioApi.SpeechRequest.AudioResponseFormat.MP3)
                 .build());
-                
+
         return speechModel.call(prompt).getResult().getOutput();
     }
 }
@@ -719,10 +737,8 @@ graph TD
 - OpenAI • Azure OpenAI
 - Anthropic • Google VertexAI
 - Amazon Bedrock • Ollama
-- Hugging Face • Mistral AI
-- Groq • NVIDIA • Perplexity
-- DeepSeek • Moonshot AI
-- QianFan • ZhiPu AI • MiniMax
+- Mistral AI • Groq
+- *20+ more providers...*
 
 </v-clicks>
 
@@ -738,8 +754,6 @@ graph TD
 - Amazon Bedrock • VertexAI
 - Ollama • Mistral AI
 - PostgresML • ONNX
-- QianFan • ZhiPu AI
-- OCI GenAI • MiniMax
 
 </v-clicks>
 
@@ -751,9 +765,8 @@ graph TD
 
 <v-clicks>
 
-- **Images**: OpenAI DALL-E
-- **Images**: Stability AI, ZhiPu AI
-- **Speech-to-Text**: OpenAI Whisper
+- **Images**: DALL-E, Stability AI
+- **Speech-to-Text**: Whisper
 - **Text-to-Speech**: OpenAI TTS
 - **Moderation**: OpenAI, Mistral
 
@@ -1382,7 +1395,7 @@ layout: section
 
 ---
 
-# Key Takeaways
+# Key Takeaways: Development
 
 <v-clicks>
 
@@ -1390,9 +1403,18 @@ layout: section
 2. **Start simple, add complexity gradually** - From basic chat to advanced RAG
 3. **Leverage Spring's strengths** - Auto-configuration, profiles, testing
 4. **Think beyond text** - Vision, audio, and structured data open new possibilities
-5. **MCP is the future** - Standardized tool integration across AI platforms
-6. **Production requires planning** - Error handling, monitoring, and resilience
-7. **Test everything** - AI responses are non-deterministic but testable
+
+</v-clicks>
+
+---
+
+# Key Takeaways: Production
+
+<v-clicks>
+
+1. **MCP is the future** - Standardized tool integration across AI platforms
+2. **Production requires planning** - Error handling, monitoring, and resilience
+3. **Test everything** - AI responses are non-deterministic but testable
 
 </v-clicks>
 

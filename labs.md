@@ -700,23 +700,23 @@ void useDateTimeTools() {
 
 ### 10.1 Text-to-Speech (TTS)
 
-Create a test that generates speech from text:
+Create a test that generates speech from text. Note that Spring AI 1.1.0 introduced a new portable TTS API using `TextToSpeechPrompt` and `TextToSpeechResponse` from `org.springframework.ai.audio.tts`:
 
 ```java
 @Test
 void textToSpeech(@Autowired OpenAiAudioSpeechModel speechModel) {
     String text = "Welcome to Spring AI, a powerful framework for integrating AI into your Spring applications.";
-    
+
     OpenAiAudioSpeechOptions options = OpenAiAudioSpeechOptions.builder()
             .voice(OpenAiAudioApi.SpeechRequest.Voice.ALLOY)
             .responseFormat(OpenAiAudioApi.SpeechRequest.AudioResponseFormat.MP3)
-            .speed(1.0f)
+            .speed(1.0)  // Note: Changed from Float to Double in 1.1.0
             .build();
-    
-    SpeechPrompt prompt = new SpeechPrompt(text, options);
-    SpeechResponse response = speechModel.call(prompt);
+
+    TextToSpeechPrompt prompt = new TextToSpeechPrompt(text, options);
+    TextToSpeechResponse response = speechModel.call(prompt);
     assertNotNull(response);
-    
+
     // Optionally save to file for verification
     try {
         Files.write(Path.of("generated_audio.mp3"), response.getResult().getOutput());
